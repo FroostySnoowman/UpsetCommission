@@ -35,6 +35,6 @@ A quick overview of the project's structure:
 
 ## **Support**
 
-**Upset Commission** was created by `someone0171` (503641822141349888). As you have commissioned me to create this bot, Someone has the obligation to provide support for up to 90 days. After that 90 day period, additional support may require compensation. Support commences on January 21st, 2025 (01/21/25).
+**Upset Commission** was created by `someone0171` (503641822141349888). As you have commissioned me to create this bot, Someone has the obligation to provide support for up to 90 days. After that 90 day period, additional support may require compensation. Support commences on February 12th, 2025 (02/12/25).
 
 Please feel free to tip/donate to help my work: [PayPal](https://paypal.me/Someone0171)
