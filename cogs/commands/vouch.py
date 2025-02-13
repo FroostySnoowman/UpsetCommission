@@ -29,11 +29,12 @@ class VouchModal(discord.ui.Modal, title="Submit a Vouch/Review"):
     async def on_submit(self, interaction: discord.Interaction):
         stars = "⭐" * self.rating
 
-        embed = discord.Embed(title="New Vouch", description=f"**A new vouch has been submitted!**", color=discord.Color.from_str(embed_color))
-        embed.add_field(name="Rating", value=stars, inline=True)
-        embed.add_field(name="Review", value=self.vouch_text.value, inline=True)
-        embed.add_field(name="User", value=interaction.user.mention, inline=True)
-        embed.set_footer(text=f"{interaction.guild.name}")
+        embed = discord.Embed(title="New Review!", description=f"Thank you {interaction.user.name} for the review!\n\nGet a quote today by opening a ticket!", color=discord.Color.from_str(embed_color))
+        embed.add_field(name="Client", value=f"{interaction.user.mention}", inline=True)
+        embed.add_field(name="Rating", value=f"{stars}", inline=True)
+        embed.add_field(name="Comment", value=self.vouch_text.value, inline=False)
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text="Orchard Studios")
         embed.timestamp = datetime.now()
 
         if vouch_channel_id:
@@ -90,8 +91,10 @@ class VouchCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        embed = discord.Embed(title="Submit a Vouch", description="Select a rating below to submit a vouch/review!", color=discord.Color.from_str(embed_color))
+        embed = discord.Embed(title="Please leave a Review!", description="Your review is what makes us!\n\nIf you enjoyed our services we would sincerely appreciate you reviewing us!\n\nSelect a rating below to begin - Will only take 1 Minute of your time!", color=discord.Color.from_str(embed_color))
         embed.timestamp = datetime.now()
+        embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339637068128845824/yellow-star-icon-21.png?ex=67af71be&is=67ae203e&hm=d79e4851b1179a8efa7303b97ec7521fedf16955ed36dcd4d4c63d9b44ad28a0&=&format=webp&quality=lossless")
+        embed.set_footer(text="Orchard Studios")
 
         await interaction.response.send_message(embed=embed, view=VouchButton(interaction.channel))
 

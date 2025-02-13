@@ -62,12 +62,11 @@ class InvoiceCog(commands.Cog):
                 if status == "PAID" or status == "MARKED_AS_PAID":
                     await db.execute('DELETE FROM invoices WHERE message_id=?', (invoice[1],))
 
-                    embed = discord.Embed(title="Invoice Paid", description=f"Payment confirmed! This invoice has been paid. This order may continue.", color=discord.Color.from_str(embed_color))
-                    embed.set_thumbnail(url=message.embeds[0].thumbnail.url)
-                    embed.add_field(name="Paid", value=f"${invoice[3]}", inline=True)
+                    embed = discord.Embed(title="Invoice - Paid", description="✔ - Thank you for making the Payment! We can now begin the commission!\n\nLink to Invoice\nhttps://www.paypal.com", colour=discord.Color.from_str(embed_color))
+                    embed.add_field(name="Amount Paid", value=f"${invoice[3]}", inline=True)
                     embed.add_field(name="Invoice ID", value=f"{invoice[2]}", inline=True)
-                    embed.add_field(name="Link", value=f"[View Invoice](https://www.paypal.com/invoice/p/#{invoice[2]})", inline=True)
-                    embed.set_footer(text=f"{guild.name}")
+                    embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339635097418207296/Eo_circle_orange_checkmark.svg.png?ex=67af6fe8&is=67ae1e68&hm=405de4ac3529d8f925950208292b2d530bcf1084577966cb27aebbc2c32b37ab&=&format=webp&quality=lossless&width=532&height=532")
+                    embed.set_footer(text="Orchard Studios")
                     embed.timestamp = datetime.now()
                     
                     msg = await message.edit(embed=embed, attachments=message.attachments)
@@ -109,21 +108,20 @@ class InvoiceCog(commands.Cog):
             return
         
         async with aiosqlite.connect('database.db') as db:
-            img = qrcode.make(f'https://www.paypal.com/invoice/p/#{response}')
-            fp = io.BytesIO()
-            img.save(fp)
-            fp.seek(0)
-            f = discord.File(fp, filename="paypal.png")
+            #img = qrcode.make(f'https://www.paypal.com/invoice/p/#{response}')
+            #fp = io.BytesIO()
+            #img.save(fp)
+            #fp.seek(0)
+            #f = discord.File(fp, filename="paypal.png")
 
-            embed = discord.Embed(title="Invoice Pending", description=f"Payment pending!", color=discord.Color.from_str(embed_color))
-            embed.set_thumbnail(url="attachment://paypal.png")
-            embed.add_field(name="Invoice Price", value=f"${amount}", inline=True)
+            embed = discord.Embed(title="**Invoice - Unpaid **", description="⌛ - Invoice has yet to be paid \n\nPlease remember all LIVE work requires 100% of the payment upfront.\n\nLink to Invoice\nhttps://www.paypal.com", colour=discord.Color.from_str(embed_color))
+            embed.add_field(name="Amount Due", value=f"${amount}", inline=True)
             embed.add_field(name="Invoice ID", value=f"{response}", inline=True)
-            embed.add_field(name="Link", value=f"[View Invoice](https://www.paypal.com/invoice/p/#{response})", inline=True)
-            embed.set_footer(text=f"{interaction.guild.name}")
+            embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339634022791516272/8531200.png?ex=67af6ee8&is=67ae1d68&hm=c21f546117e5245f31577ef6d00dd25d88a6980ec8a2ddc423c424ed4996d6b1&=&format=webp&quality=lossless")
+            embed.set_footer(text="Orchard Studios")
             embed.timestamp = datetime.now()
 
-            await interaction.followup.send(embed=embed, view=PayPalLink(response), files=[f])
+            await interaction.followup.send(embed=embed, view=PayPalLink(response))
             msg = await interaction.original_response()
 
             await db.execute('INSERT INTO invoices VALUES (?,?,?,?);', (interaction.channel.id, msg.id, response, amount))
