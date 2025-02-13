@@ -1,0 +1,61 @@
+General:
+    TOKEN: "" # Bot Token
+    ACTIVITY: "watching" # playing, watching, listening, streaming
+    DOING_ACTIVITY: "Commands" # What you want the bot to be doing
+    STREAMING_ACTIVITY_TWITCH_URL: "" # if ACTIVITY is streaming, provide a twitch url
+    STATUS: "online" # online, idle, dnd, invisible
+
+    EMBED_COLOR: "#9C27B0" # Hex color code for embeds
+
+    GUILD_ID: 1234 # Guild ID
+
+Join:
+    ROLES: [1234, 5678] # Role IDs to give on join
+    
+    WELCOME_CHANNEL_ID: 1234 # Channel ID for welcome messages
+
+Invoice:
+    PAYPAL_CLIENT_ID: "" # PayPal Client ID
+    PAYPAL_CLIENT_SECRET: "" # PayPal Client Secret
+    NAME: "Business Name" # Business Name
+    WEBSITE: "Business Website" # Business Website
+    TOS: "Business TOS" # Business TOS
+    PAYPAL_EMOJI: "<:paypal:1339028680537804901>" # PayPal Emoji
+    FEE: 0.05 # Fee percentage (0 to disable)
+
+Tickets:
+    ARCHIVE_CHANNEL_ID: 1234 # Channel ID to archive tickets
+    
+    QUOTES:
+        CATEGORY_ID: 1234 # Category ID for quotes
+        ADDED_ROLES: [1234, 5678] # Role IDs to add to the ticket when channel is made
+        QUESTIONS:
+            - label: "What type of quote do you need?" # Question label
+              max_length: 500 # Max length of the answer
+            - label: "Any additional details?" # Question label
+              max_length: 1000 # Max length of the answer
+
+    APPLY:
+        CATEGORY_ID: 1234 # Category ID for applications
+        ADDED_ROLES: [1234] # Role IDs to add to the ticket when channel is made
+        QUESTIONS:
+            - label: "What position are you applying for?" # Question label
+              max_length: 100 # Max length of the answer
+            - label: "Why do you think you're a good fit?" # Question label
+              max_length: 1000 # Max length of the answer
+
+    SUPPORT:
+        CATEGORY_ID: 1234 # Category ID for support tickets
+        ADDED_ROLES: [] # Role IDs to add to the ticket when channel is made
+        QUESTIONS:
+            - label: "What issue are you facing?" # Question label
+              max_length: 2000 # Max length of the answer
+
+Vouches:
+    VOUCH_CHANNEL_ID: 1234 # Channel ID for vouches
+
+Permissions:
+    EMBED_ROLES: [1234, 5678] # Role IDs that can use the embed command
+    INVOICE_ROLES: [1234] # Role IDs that can use the invoice command
+    TICKET_ROLES: [1234] # Role IDs that can use the ticket command
+    VOUCH_ROLES: [1234] # Role IDs that can use the vouch command
