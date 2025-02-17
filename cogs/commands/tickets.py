@@ -1,11 +1,8 @@
 import discord
-import chat_exporter
-import htmlmin
 import yaml
-import io
 from discord import app_commands
-from datetime import datetime
 from discord.ext import commands
+from cogs.functions.utils import close_ticket
 
 with open('config.yml', 'r') as file:
     data = yaml.safe_load(file)
@@ -112,51 +109,7 @@ class TicketsClose(discord.ui.View):
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         
-        first_message = [msg async for msg in interaction.channel.history(oldest_first=True, limit=1)]
-        
-        if not first_message or not first_message[0].mentions:
-            await interaction.followup.send("❌ Could not determine the ticket creator.", ephemeral=True)
-            return
-
-        creator = first_message[0].mentions[0]
-        timestamp = int(datetime.now().timestamp())
-
-        transcript = await chat_exporter.export(
-            interaction.channel,
-            limit=500,
-            tz_info="MST",
-            military_time=False,
-            fancy_times=True,
-            bot=interaction.client,
-        )
-
-        if transcript is None:
-            await interaction.followup.send("❌ Failed to create transcript.", ephemeral=True)
-            return
-
-        minified_transcript = htmlmin.minify(transcript, remove_empty_space=True)
-        file_bytes = io.BytesIO(minified_transcript.encode())
-        file_name = f"{interaction.channel.name}.html"
-
-        archive_channel_id = data["Tickets"].get("ARCHIVE_CHANNEL_ID")
-        archive_channel = interaction.guild.get_channel(archive_channel_id) if archive_channel_id else None
-
-        embed = discord.Embed(title="📜 Ticket Transcript 📜", description=f"Creator: {creator.mention}\nClosed At: <t:{timestamp}:f>\nChannel: {interaction.channel.name}", color=discord.Color.from_str(embed_color))
-        embed.set_footer(text="Download the file above and open it to view the transcript")
-        embed.timestamp = datetime.now()
-
-        if archive_channel:
-            archive_file = discord.File(io.BytesIO(minified_transcript.encode()), filename=file_name)
-            await archive_channel.send(embed=embed, file=archive_file)
-
-        try:
-            file_bytes.seek(0)
-            user_file = discord.File(file_bytes, filename=file_name)
-            await creator.send(embed=embed, file=user_file)
-        except discord.Forbidden:
-            pass
-
-        await interaction.channel.delete()
+        await close_ticket(interaction)
 
 class TicketCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -183,6 +136,104 @@ class TicketCog(commands.Cog):
         await interaction.channel.send(embed=embed, view=Tickets())
 
         await interaction.response.send_message('Sent!', ephemeral=True)
+
+    @app_commands.command(name="open", description="Opens a ticket")
+    @app_commands.default_permissions(administrator=True)
+    async def panel(self, interaction: discord.Interaction) -> None:
+        if not await self.check_permissions(interaction):
+            embed = discord.Embed(title="No Permission", description="You do not have permission to use this command.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        embed = discord.Embed(color=discord.Color.from_str(embed_color))
+        embed.set_image(url="https://media.discordapp.net/attachments/1338546681683247146/1338890382985134141/TICKETS.PNG?ex=67ae0bd6&is=67acba56&hm=2471198875a29c1b78deb841e00a727b8c4d978b5401e0024be27f34f376f3df&=&format=webp&quality=lossless&width=1008&height=314")
+        embed.set_footer(text="Orchard Studios - Open a Ticket to talk to a Representative!")
+        await interaction.response.send_message(embed=embed, view=Tickets(), ephemeral=True)
+
+    @app_commands.command(name="close", description="Closes a ticket")
+    async def close(self, interaction: discord.Interaction) -> None:
+        if not await self.check_permissions(interaction):
+            embed = discord.Embed(title="No Permission", description="You do not have permission to use this command.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        if not any(category_key.lower() in interaction.channel.name.lower() for category_key in data["Tickets"].keys()):
+            embed = discord.Embed(title="Error", description="This command can only be used inside a ticket channel!", color=discord.Color.from_str(embed_color))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        await interaction.response.defer(thinking=True)
+        
+        await close_ticket(interaction)
+
+    @app_commands.command(name="add", description="Adds a member to a ticket")
+    async def add(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        if not await self.check_permissions(interaction):
+            embed = discord.Embed(title="No Permission", description="You do not have permission to use this command.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        if not any(category_key.lower() in interaction.channel.name.lower() for category_key in data["Tickets"].keys()):
+            embed = discord.Embed(title="Error", description="This command can only be used inside a ticket channel!", color=discord.Color.from_str(embed_color))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        await interaction.channel.set_permissions(member,
+            send_messages=True,
+            read_messages=True,
+            add_reactions=True,
+            embed_links=True,
+            attach_files=True,
+            read_message_history=True,
+            external_emojis=True)
+        
+        embed = discord.Embed(title="Member Added", description=f"{member.mention} has been added to the ticket!", color=discord.Color.from_str(embed_color))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="remove", description="Removes a member from a ticket")
+    async def remove(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        if not await self.check_permissions(interaction):
+            embed = discord.Embed(title="No Permission", description="You do not have permission to use this command.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        if not any(category_key.lower() in interaction.channel.name.lower() for category_key in data["Tickets"].keys()):
+            embed = discord.Embed(title="Error", description="This command can only be used inside a ticket channel!", color=discord.Color.from_str(embed_color))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        await interaction.channel.set_permissions(member,
+            send_messages=False,
+            read_messages=False,
+            add_reactions=False,
+            embed_links=False,
+            attach_files=False,
+            read_message_history=False,
+            external_emojis=False)
+        
+        embed = discord.Embed(title="Member Removed", description=f"{member.mention} has been removed from the ticket!", color=discord.Color.from_str(embed_color))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="private", description="Makes the ticket private")
+    async def private(self, interaction: discord.Interaction) -> None:
+        if not await self.check_permissions(interaction):
+            embed = discord.Embed(title="No Permission", description="You do not have permission to use this command.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        if not any(category_key.lower() in interaction.channel.name.lower() for category_key in data["Tickets"].keys()):
+            embed = discord.Embed(title="Error", description="This command can only be used inside a ticket channel!", color=discord.Color.from_str(embed_color))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        overwrites = interaction.channel.overwrites
+        
+        new_overwrites = {target: perms for target, perms in overwrites.items() if not isinstance(target, discord.Member)}
+        
+        await interaction.channel.edit(overwrites=new_overwrites)
+        
+        embed = discord.Embed(title="Ticket Privated", description="This ticket is now private.", color=discord.Color.from_str(embed_color))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TicketCog(bot))

@@ -9,7 +9,7 @@ with open('config.yml', 'r') as file:
     data = yaml.safe_load(file)
 
 embed_color = data["General"]["EMBED_COLOR"]
-embed_roles = data["Permissions"].get("EMBED_COMMANDS", [])
+embed_roles = data["Permissions"].get("EMBED_ROLES", [])
 
 IMAGE_URL_REGEX = re.compile(r"^https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp)$")
 
