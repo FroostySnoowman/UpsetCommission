@@ -56,7 +56,6 @@ class InvoiceCog(commands.Cog):
                     payment = paypalrestsdk.Invoice.find(f"{invoice[2]}", api=my_api)
 
                     status = payment['status']
-                    status = "PAID"
 
                     if status == "PAID" or status == "MARKED_AS_PAID":
                         await db.execute('UPDATE commissions SET amount = amount + ? WHERE channel_id = ?', (invoice[3], invoice[0]))
