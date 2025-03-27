@@ -1,7 +1,7 @@
 import discord
 import paypalrestsdk
 import chat_exporter
-import htmlmin
+import aiosqlite
 import yaml
 import io
 from paypalrestsdk import Invoice
@@ -13,19 +13,20 @@ with open('config.yml', 'r') as file:
 embed_color = data["General"]["EMBED_COLOR"]
 name = data["Invoice"]["NAME"]
 website = data["Invoice"]["WEBSITE"]
-tos = data["Invoice"]["TOS"]
+logo_url = data["Invoice"]["LOGO_URL"]
 fee = data["Invoice"]["FEE"]
 
-async def create_invoice(auth: paypalrestsdk.Api, total: int, email: str = None):
+async def create_invoice(auth: paypalrestsdk.Api, total: int, department: str, freelancer: discord.Member, channel: discord.TextChannel, email: str = None):
     invoice_data = {
         "merchant_info": {
             "business_name": name,
-            "website": website
+            "website": website,
+            "logo_url": logo_url
         },
         "items": [
             {
-                "name": "Service",
-                "description": f"Service at {name}",
+                "name": f"{department} Package",
+                "description": f"Included in the package:\n1x {department} Package - Created by {freelancer.name}",
                 "quantity": 1,
                 "unit_price": {
                     "currency": "USD",
@@ -33,11 +34,12 @@ async def create_invoice(auth: paypalrestsdk.Api, total: int, email: str = None)
                 }
             }
         ],
-        "note": f"This invoice is for your ticket at {name}.",
-        "terms": tos,
+        "note": "Thank you for supporting us :)",
         "payment_term": {
             "term_type": "NET_45"
-        }
+        },
+        "reference": f"{channel.name}",
+        "allow_tip": True
     }
 
     if fee > 0:
@@ -47,7 +49,7 @@ async def create_invoice(auth: paypalrestsdk.Api, total: int, email: str = None)
             "quantity": 1,
             "unit_price": {
                 "currency": "USD",
-                "value": fee
+                "value": total * (fee * 0.01)
             }
         })
 
@@ -87,8 +89,7 @@ async def close_ticket(interaction: discord.Interaction):
         await interaction.followup.send("❌ Failed to create transcript.", ephemeral=True)
         return
 
-    minified_transcript = htmlmin.minify(transcript, remove_empty_space=True)
-    file_bytes = io.BytesIO(minified_transcript.encode())
+    file_bytes = io.BytesIO(transcript.encode())
     file_name = f"{interaction.channel.name}.html"
 
     archive_channel_id = data["Tickets"].get("ARCHIVE_CHANNEL_ID")
@@ -99,7 +100,7 @@ async def close_ticket(interaction: discord.Interaction):
     embed.timestamp = datetime.now()
 
     if archive_channel:
-        archive_file = discord.File(io.BytesIO(minified_transcript.encode()), filename=file_name)
+        archive_file = discord.File(io.BytesIO(transcript.encode()), filename=file_name)
         await archive_channel.send(embed=embed, file=archive_file)
 
     try:
@@ -109,4 +110,37 @@ async def close_ticket(interaction: discord.Interaction):
     except discord.Forbidden:
         pass
 
+    async with aiosqlite.connect("database.db") as db:
+        cursor = await db.execute("SELECT * FROM commissions WHERE channel_id = ?", (interaction.channel.id,))
+        commission_data = await cursor.fetchone()
+
+        if commission_data:
+            try:
+                freelancer_channel = interaction.guild.get_channel(commission_data[2])
+                freelancer_message = await freelancer_channel.fetch_message(commission_data[3])
+                await freelancer_message.delete()
+            except:
+                pass
+
+            if commission_data[5] and commission_data[6] >= 0:
+                cursor = await db.execute("SELECT * FROM wallets WHERE member_id = ?", (commission_data[5],))
+                wallet_data = await cursor.fetchone()
+
+                if wallet_data:
+                    await db.execute('UPDATE wallets SET amount = amount + ? WHERE member_id = ?', (commission_data[6], commission_data[5]))
+                
+                try:
+                    freelancer = interaction.guild.get_member(commission_data[5])
+                    embed = discord.Embed(title="Payment Received", description=f"You have just received `${commission_data[6]:.2f}` to your balance. This payment is coming from the `{interaction.channel.name}` ticket. To withdraw this money, use the `/wallet` command. \n\n**Total Available For Withdrawal**\n`${wallet_data[3] + commission_data[6]:.2f}`", color=discord.Color.from_str(embed_color))
+                    await freelancer.send(embed=embed)
+                except:
+                    pass
+        
+        await db.execute("DELETE FROM commissions WHERE channel_id = ?", (interaction.channel.id,))
+        await db.execute("DELETE FROM questions WHERE channel_id = ?", (interaction.channel.id,))
+        await db.execute("DELETE FROM quotes WHERE channel_id = ?", (interaction.channel.id,))
+        await db.execute("DELETE FROM invoices WHERE channel_id = ?", (interaction.channel.id,))
+
+        await db.commit()
+    
     await interaction.channel.delete()

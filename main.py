@@ -95,11 +95,15 @@ else:
 intents = discord.Intents.all()
 
 initial_extensions = [
+    'cogs.commands.calculate',
     'cogs.commands.embed',
     'cogs.commands.invoice',
+    'cogs.commands.profile',
     'cogs.commands.tickets',
     'cogs.commands.vouch',
-    'cogs.events.member'
+    'cogs.commands.wallet',
+    'cogs.events.member',
+    'cogs.functions.sqlite'
 ]
 
 class UpsetBot(commands.Bot):

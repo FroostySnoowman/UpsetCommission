@@ -2,9 +2,7 @@ import discord
 import paypalrestsdk
 import aiosqlite
 import asyncio
-import qrcode
 import yaml
-import io
 from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime
@@ -19,6 +17,7 @@ embed_color = data["General"]["EMBED_COLOR"]
 paypal_client_id = data["Invoice"]["PAYPAL_CLIENT_ID"]
 paypal_client_secret = data["Invoice"]["PAYPAL_CLIENT_SECRET"]
 invoice_roles = data["Permissions"].get("INVOICE_ROLES", [])
+commissions = data["Commissions"]
 
 my_api = paypalrestsdk.Api(
     {
@@ -46,35 +45,38 @@ class InvoiceCog(commands.Cog):
             cursor = await db.execute('SELECT * FROM invoices')
             invoices = await cursor.fetchall()
 
-            guild = self.bot.get_guild(guild_id)
-
             for invoice in invoices:
-                channel = self.bot.get_channel(invoice[0])
+                try:
+                    channel = self.bot.get_channel(invoice[0])
 
-                partialmessage = channel.get_partial_message(invoice[1])
+                    partialmessage = channel.get_partial_message(invoice[1])
 
-                message = await channel.fetch_message(partialmessage.id)
+                    message = await channel.fetch_message(partialmessage.id)
 
-                payment = paypalrestsdk.Invoice.find(f"{invoice[2]}", api=my_api)
+                    payment = paypalrestsdk.Invoice.find(f"{invoice[2]}", api=my_api)
 
-                status = payment['status']
+                    status = payment['status']
+                    status = "PAID"
 
-                if status == "PAID" or status == "MARKED_AS_PAID":
+                    if status == "PAID" or status == "MARKED_AS_PAID":
+                        await db.execute('UPDATE commissions SET amount = amount + ? WHERE channel_id = ?', (invoice[3], invoice[0]))
+                        await db.execute('DELETE FROM invoices WHERE message_id=?', (invoice[1],))
+
+                        embed = discord.Embed(title="Invoice - Paid", description="✔ - Thank you for making the Payment! We can now begin the commission!", colour=discord.Color.from_str(embed_color))
+                        embed.add_field(name="Amount Paid", value=f"${invoice[3]}", inline=True)
+                        embed.add_field(name="Invoice ID", value=f"{invoice[2]}", inline=True)
+                        embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339635097418207296/Eo_circle_orange_checkmark.svg.png?ex=67af6fe8&is=67ae1e68&hm=405de4ac3529d8f925950208292b2d530bcf1084577966cb27aebbc2c32b37ab&=&format=webp&quality=lossless&width=532&height=532")
+                        embed.set_footer(text="Orchard Studios")
+                        embed.timestamp = datetime.now()
+                        
+                        msg = await message.edit(embed=embed, attachments=message.attachments)
+
+                        embed = discord.Embed(title="Invoice Payment Successful", description=f"Successfully received the paypal for this [invoice]({msg.jump_url}) (**${invoice[3]}**).", color=discord.Color.from_str(embed_color))
+                        await channel.send(embed=embed)
+                    else:
+                        continue
+                except:
                     await db.execute('DELETE FROM invoices WHERE message_id=?', (invoice[1],))
-
-                    embed = discord.Embed(title="Invoice - Paid", description="✔ - Thank you for making the Payment! We can now begin the commission!\n\nLink to Invoice\nhttps://www.paypal.com", colour=discord.Color.from_str(embed_color))
-                    embed.add_field(name="Amount Paid", value=f"${invoice[3]}", inline=True)
-                    embed.add_field(name="Invoice ID", value=f"{invoice[2]}", inline=True)
-                    embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339635097418207296/Eo_circle_orange_checkmark.svg.png?ex=67af6fe8&is=67ae1e68&hm=405de4ac3529d8f925950208292b2d530bcf1084577966cb27aebbc2c32b37ab&=&format=webp&quality=lossless&width=532&height=532")
-                    embed.set_footer(text="Orchard Studios")
-                    embed.timestamp = datetime.now()
-                    
-                    msg = await message.edit(embed=embed, attachments=message.attachments)
-
-                    embed = discord.Embed(title="Invoice Payment Successful", description=f"Successfully received the paypal for this [invoice]({msg.jump_url}) (**${invoice[3]}**).", color=discord.Color.from_str(embed_color))
-                    await channel.send(embed=embed)
-                else:
-                    continue
             
             await db.commit()
 
@@ -97,35 +99,56 @@ class InvoiceCog(commands.Cog):
         
         await interaction.response.defer(thinking=True)
 
-        response = await create_invoice(my_api, amount, email)
-        if not response:
-            embed = discord.Embed(title="Error", description="An error occurred while creating the invoice.", color=discord.Color.from_str(embed_color))
-            embed.set_footer(text="Deleting in 10 seconds")
-            await interaction.followup.send(embed=embed)
-            msg = await interaction.original_response()
-            await asyncio.sleep(10)
-            await msg.delete()
-            return
-        
-        async with aiosqlite.connect('database.db') as db:
-            #img = qrcode.make(f'https://www.paypal.com/invoice/p/#{response}')
-            #fp = io.BytesIO()
-            #img.save(fp)
-            #fp.seek(0)
-            #f = discord.File(fp, filename="paypal.png")
+        async with aiosqlite.connect("database.db") as db:
+            cursor = await db.execute("SELECT * FROM commissions WHERE channel_id = ?", (interaction.channel.id,))
+            commission_data = await cursor.fetchone()
+            
+            if not commission_data:
+                embed = discord.Embed(title="Error", description="This command can only be used in a commission channel.", color=discord.Color.red())
+                await interaction.followup.send(embed=embed)
+                return
+            
+            if not commission_data[5]:
+                embed = discord.Embed(title="Error", description="This commission has no freelancer!", color=discord.Color.red())
+                await interaction.followup.send(embed=embed)
+                return
+            
+            freelancer = interaction.guild.get_member(commission_data[5])
+            if not freelancer:
+                embed = discord.Embed(title="Error", description="The freelancer for this commission is not in the server.", color=discord.Color.red())
+                await interaction.followup.send(embed=embed)
+                return
+            
+            department = next((c["department"] for c in commissions if c["channel"] == commission_data[2]), None)
+            if not department:
+                embed = discord.Embed(title="Error", description="This command can only be used in a commission channel.", color=discord.Color.red())
+                embed.set_footer(text="Failed to find department")
+                await interaction.followup.send(embed=embed)
+                return
 
-            embed = discord.Embed(title="**Invoice - Unpaid **", description="⌛ - Invoice has yet to be paid \n\nPlease remember all LIVE work requires 100% of the payment upfront.\n\nLink to Invoice\nhttps://www.paypal.com", colour=discord.Color.from_str(embed_color))
-            embed.add_field(name="Amount Due", value=f"${amount}", inline=True)
-            embed.add_field(name="Invoice ID", value=f"{response}", inline=True)
-            embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339634022791516272/8531200.png?ex=67af6ee8&is=67ae1d68&hm=c21f546117e5245f31577ef6d00dd25d88a6980ec8a2ddc423c424ed4996d6b1&=&format=webp&quality=lossless")
-            embed.set_footer(text="Orchard Studios")
-            embed.timestamp = datetime.now()
+            response = await create_invoice(my_api, amount, department, freelancer, interaction.channel, email)
+            if not response:
+                embed = discord.Embed(title="Error", description="An error occurred while creating the invoice.", color=discord.Color.from_str(embed_color))
+                embed.set_footer(text="Deleting in 10 seconds")
+                await interaction.followup.send(embed=embed)
+                msg = await interaction.original_response()
+                await asyncio.sleep(10)
+                await msg.delete()
+                return
+            
+            async with aiosqlite.connect('database.db') as db:
+                embed = discord.Embed(title="**Invoice - Unpaid **", description="⌛ - Invoice has yet to be paid \n\nPlease remember all LIVE work requires 100% of the payment upfront.", colour=discord.Color.from_str(embed_color))
+                embed.add_field(name="Amount Due", value=f"${amount}", inline=True)
+                embed.add_field(name="Invoice ID", value=f"{response}", inline=True)
+                embed.set_thumbnail(url="https://media.discordapp.net/attachments/964703100839555092/1339634022791516272/8531200.png?ex=67af6ee8&is=67ae1d68&hm=c21f546117e5245f31577ef6d00dd25d88a6980ec8a2ddc423c424ed4996d6b1&=&format=webp&quality=lossless")
+                embed.set_footer(text="Orchard Studios")
+                embed.timestamp = datetime.now()
 
-            await interaction.followup.send(embed=embed, view=PayPalLink(response))
-            msg = await interaction.original_response()
+                await interaction.followup.send(embed=embed, view=PayPalLink(response))
+                msg = await interaction.original_response()
 
-            await db.execute('INSERT INTO invoices VALUES (?,?,?,?);', (interaction.channel.id, msg.id, response, amount))
-            await db.commit()
+                await db.execute('INSERT INTO invoices VALUES (?,?,?,?);', (interaction.channel.id, msg.id, response, amount))
+                await db.commit()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(InvoiceCog(bot))

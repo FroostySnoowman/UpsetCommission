@@ -1,4 +1,5 @@
 config.yml
+main-config.yml
 *.db
 .venv
 .DS_Store
