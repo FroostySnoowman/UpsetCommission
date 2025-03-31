@@ -104,6 +104,14 @@ class ClientButtons(discord.ui.View):
                 except:
                     continue
             
+            freelancer_channel = interaction.client.get_channel(commission_data[2])
+            if freelancer_channel:
+                try:
+                    freelancer_message = await freelancer_channel.fetch_message(commission_data[3])
+                    await freelancer_message.delete()
+                except:
+                    pass
+            
             embed = discord.Embed(title="Quote Accepted", description=f"{freelancer.mention} has been added to the commission!", color=discord.Color.from_str(embed_color))
             await interaction.channel.send(embed=embed)
 
